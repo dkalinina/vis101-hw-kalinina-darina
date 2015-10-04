@@ -10,6 +10,6 @@ git pull homework master
 For details on how to submit your work, take a look at [Section 1](https://github.com/kapc3d/vis101/tree/master/section1).
 
 ---
-**Name**:
+**Name**: Kalinina Darina
 
-**Email**:
+**Email**: dkalinina92@gmail.com
