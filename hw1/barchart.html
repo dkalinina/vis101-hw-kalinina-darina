@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<head>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+	<style type="text/css">
+		rect {
+			fill-opacity:.8;
+		}
+		.notSelected rect {
+			height: 0;
+		}
+		.notSelected text {
+			font-size: 0;
+		}
+		
+	</style>
+</head>
+<body>
+	<script type="text/javascript">
+		d3.select("body").append("label").classed("times", true);
+		d3.select("body").append("br");
+		d3.select("body").append("label").classed("radiobuttonsEncode", true);
+		d3.select("body").append("br");
+		d3.select("body").append("label").classed("checkboxes", true);
+		d3.select("body").append("br");
+		d3.select("body").append("label").classed("radiobuttonsAggregate", true);
+		d3.select("body").append("br");
+		d3.select("body").append("label").classed("radiobuttonsSort", true);
+		d3.select("body").append("br");
+		var dataset;
+		var aggrMode = false;
+		var continents = [];
+		var year = 0;
+		var barHeight = 7;
+		var r = [];
+
+		var margin = {top: 50, bottom: 10, left:300, right: 40};
+		var width = 900 - margin.left - margin.right;
+		var height = 1300 - margin.top - margin.bottom;
+ 
+		var xScale = d3.scale.linear().range([0, width]);
+		var yScale = d3.scale.ordinal().rangeRoundBands([0, height], .8, 0);
+		var fill = d3.scale.category10();
+ 
+		var svg = d3.select("body").append("svg")
+				.attr("width", width+margin.left+margin.right)
+				.attr("height", height+margin.top+margin.bottom);
+ 
+		var g = svg.append("g")
+				.attr("transform", "translate("+margin.left+","+margin.top+")");
+ 
+		d3.json("data/countries_1995_2012.json", function(data) {
+			dataset = data;
+
+			var list = ["population", "gdp", "year"];
+			nested_rows = d3.nest()
+				.key(function(d) { return d.continent; })
+				.rollup(function(d) {
+					var rollYears = [];
+					for(var i = 0; i < d[0].years.length; i++) {
+						var parameters = [];
+						for(var j = 0; j < list.length; j++)
+							parameters[list[j]]=0;
+						rollYears.push(parameters);
+					}
+					for(var i = 0; i < d.length; i++) {
+						for(var j = 0; j < d[0].years.length; j++) {
+							for(var k = 0; k < list.length; k++) {
+								if(list[k] == "year") rollYears[j][list[k]] = d[i].years[j][list[k]];
+								else rollYears[j][list[k]] += d[i].years[j][list[k]];
+							}
+						}
+					}
+					return {
+						years: rollYears
+					}; }) // Where aggregation happens
+				.entries(dataset);
+
+			for(var i = 0; i < nested_rows.length; i++) {
+				var temp = {
+					"continent" : nested_rows[i].key,
+					"name" : nested_rows[i].key,
+					"years" : nested_rows[i].values.years
+				};
+				dataset.push(temp);
+			}
+
+			var rows = g.append("g")
+					.selectAll("g.row")
+					.data(dataset)
+					.enter()
+					.append("g")
+					.attr("class", function(d) {
+							if(d.name == d.continent) return "row aggr notSelected";
+							else return "row";})
+					.attr("id", function(d) {return d.name;})
+
+
+ 			var max = d3.max(dataset, function(d) { 
+				if(!(continents.some(elem => elem == d.continent)))
+					continents.push(d.continent);
+				return d.years[year].population;
+			});
+
+			var min = 0;
+			xScale.domain([min, max]);
+			yScale.domain(data.map(function(d) { return d.name; }));
+ 
+			var bars = rows
+					.append("rect")
+					.attr("width", function(d) { return xScale(d.years[year].population); })
+					.attr("height", barHeight)
+					.attr("x", xScale(min))
+					.attr("y", function(d) { return yScale(d.name); })
+					.attr("fill", function(d) {
+						return fill(d.continent);
+					})
+
+			var texts = rows
+					.append("text")
+					.text(function(d) { return d.name; })
+					.attr("font-size", 12)
+					.attr("text-anchor", "end")
+					.attr("x", function(d) { return xScale(min) - 3; })
+					.attr("y", function(d) { return yScale(d.name) + barHeight; })
+			r = rows;
+
+
+
+
+
+			var minTime = d3.min(dataset, function(array) {return array.years[0].year;}),
+				maxTime = d3.max(dataset, function(array) {return array.years[array.years.length-1].year;});
+ 
+			var l = d3.select("body").select("label.times");
+			l.text("Time update:"); 
+			l.append("label").text(minTime);
+			l.append("input")
+				.attr( "type", "range" )
+				.attr( "name", "points" )
+				.attr( "min", minTime)
+				.attr( "max", maxTime)
+				.attr( "step", "1")
+				.attr( "value", "0")
+				.attr( "id", "slider-time")
+				.attr( "oninput", "year = this.value - this.min; updateTime();");
+			l.append("label").text(maxTime);
+
+			var l = d3.select("body").select("label.radiobuttonsEncode");
+			l.text("Encode bars by:"); 
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "encode" )
+				.attr( "value", "population")
+				.attr( "checked", true)
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("Population");
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "encode" )
+				.attr( "value", "gdp")
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("GDP");
+
+			var l = d3.select("body").select("label.checkboxes");
+			l.text("Filter by:"); 
+			d3.range(continents.length).map(function(i) {
+				l.append("input")
+				.text( continents[i] ) //в браузере отображается код <input ...>text</input>, но при этом текст не повляется рядом с кнопкой в режиме просмотра
+				.attr( "type", "checkbox" )
+				.attr( "name", continents[i] )
+				.attr( "onchange", "checkboxselect()"); 
+				l.append("label").text(continents[i]);
+				
+			});
+
+			var l = d3.select("body").select("label.radiobuttonsAggregate");
+			l.text("Aggregate by:"); 
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "aggregate" )
+				.attr( "value", "continent")
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("Continent");
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "aggregate" )
+				.attr( "value", "name")
+				.attr( "checked", true)
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("Country");
+
+			var l = d3.select("body").select("label.radiobuttonsSort");
+			l.text("Sort by:"); 
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "sort" )
+				.attr( "value", "name")
+				.attr( "checked", true)
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("Name");
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "sort" )
+				.attr( "value", "population")
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("Population");
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "sort" )
+				.attr( "value", "gdp")
+				.attr( "onchange", "radioselect(name, value)");
+			l.append("label").text("GDP");
+
+		});
+
+		function checkboxselect() {
+			var checkboxselected = 0;
+			var visible = [];
+			d3.selectAll("input").each(function(d) {
+				if(d3.select(this).attr("type") == "checkbox" && d3.select(this).node().checked) {
+					checkboxselected = checkboxselected + 1;
+					visible.push(d3.select(this).attr("name"));
+				}
+			})
+			var value = d3.select("input[name='aggregate']:checked").node().value;
+			if (checkboxselected == 0 || checkboxselected == 5) {
+				r.each( function() {
+					var elt = d3.select(this);
+					if(value == "continent") {
+						if(elt.classed("aggr")) elt.classed("notSelected", false);
+						else elt.classed("notSelected", true);
+					} else {
+						if(!elt.classed("aggr")) elt.classed("notSelected", false);
+						else elt.classed("notSelected", true);
+					}
+				});
+			} else {
+				r.each( function(d) {
+					var elt = d3.select(this);
+					elt.classed("notSelected", true);
+					if(visible.some(x => x == d.continent)) 
+						if(value == "continent") {
+							if(elt.classed("aggr")) elt.classed("notSelected", false);
+						} else {
+							if(!elt.classed("aggr")) elt.classed("notSelected", false);
+						}
+				});
+			}
+			var value = d3.select("input[name='sort']:checked").node().value;
+			sort(value);
+		}
+
+		function radioselect(name, value) {
+			console.log(name + " " + value);
+
+			if(name == "encode") {
+ 				var max = d3.max(dataset, function(d) { return d.years[year][value]; });
+				var min = 0;
+				xScale.domain([min, max]);
+				yScale.domain(dataset.map(function(d) { return d.name; }));
+
+				svg.selectAll("rect")
+					.attr("width", function(d) { return xScale(d.years[year][value]); });	
+			} else if(name == "aggregate") {
+				checkboxselect();
+			} else if(name == "sort") {
+				sort(value);
+			}
+		}
+
+
+		function updateTime() {
+			value = d3.select("input[name='encode']:checked").node().value;
+			svg.selectAll("g.row:not(.notSelected)")
+					.select("rect")
+					.attr("width", function(d) { return xScale(d.years[year][value]); });
+		}
+
+		
+		function sort(x) {
+			dataset = dataset.sort(function(a,b) {
+					var aSelect = d3.select('[id = \"' + a.name + '\"]').classed("notSelected");
+					var bSelect = d3.select('[id = \"' + b.name + '\"]').classed("notSelected");
+					if(aSelect == bSelect)
+						if(a[x] == null) return d3.ascending(a.years[year][x], b.years[year][x]);
+						else return d3.ascending(a[x], b[x]);
+					else if(aSelect) return 1;
+					else return -1;
+				});
+			yScale.domain(dataset.map(function(d) { return d.name; }));
+
+			svg.selectAll("rect")
+					.attr("y", function(d) { return yScale(d.name); });
+			svg.selectAll("text")
+					.attr("y", function(d) { return yScale(d.name) + barHeight; });
+		}
+	</script>
+</body>
+</html>

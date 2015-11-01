@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<style>
+		table, tr, td, th {
+			border: 1px solid #000000;
+			border-collapse: collapse;
+		}
+
+		tr.even {
+			background: #ffffff;
+		}
+
+		tr.odd{
+			background: #eeeeee;
+		}
+
+		tr.notSelected {
+			display: none;
+		}
+	</style>
+</head>
+<body>		
+	<script src="http://d3js.org/d3.v3.min.js"></script>
+	<script>
+		d3.select("body").append("label").classed("times", true);
+		d3.select("body").append("p");
+		d3.select("body").append("label").classed("checkboxes", true);
+		d3.select("body").append("p");
+		d3.select("body").append("label").classed("radiobuttons", true);
+		var aggrMode = false, r, rows, rowsaggr;
+		var continents = [];
+		var year = 0;
+		var filterList = [ "name", "continent", "gdp", "life_expectancy", "population", "year" ];
+
+		d3.json("data/countries_1995_2012.json", function(error, data){
+			dataset = data;
+			
+			var columns = Object.keys(data[0]);
+			//filterList = filterList.filter(function(d) {return columns.some(elem => elem == d );});
+				var table = d3.select("body").append("table"),
+				thead = table.append("thead")
+				tbody = table.append("tbody");
+				table.append("caption")
+					.html("World Countries Ranking");
+			var sortOrder = [];
+				thead.append("tr").selectAll("th")
+				.data(filterList)
+				.enter()
+				.append("th")
+				.text(function(d) { 
+					sortOrder.push(true);
+					return d; })
+				.on("click", function(header, i) {
+						tbody.selectAll("tr").sort(function(a, b) {
+						if (sortOrder[i]) {
+							if(a.key == null && b.key == null) {
+								var x;
+								if(a[header] == null)
+									x = d3.ascending(a.years[year][header],b.years[year][header]);
+								else
+									x = d3.ascending(a[header], b[header]);
+								if(x == 0) return d3.ascending(a[filterList[0]], b[filterList[0]]);
+								else return x;
+							} else if(a.key != null && b.key != null) {
+								var x;
+								if(header == "name" || header == "continent") return d3.ascending(a.key, b.key);
+								else x = d3.ascending(a.values.years[year][header], b.values.years[year][header]);
+								if(x == 0) return d3.ascending(a.key, b.key); else return x;
+							} else if(a.key != null) return -1;
+							else return 1;
+						} else {
+							if(a.key == null && b.key == null) {
+								var x;
+								if(a[header] == null)
+									x = d3.descending(a.years[year][header],b.years[year][header]);
+								else
+									x = d3.descending(a[header], b[header]);
+								if(x == 0) return d3.descending(a[filterList[0]], b[filterList[0]]);
+								else return x;
+							} else if(a.key != null && b.key != null) {
+								var x;
+								if(header == "name" || header == "continent") return d3.descending(a.key, b.key);
+								else x = d3.descending(a.values.years[year][header], b.values.years[year][header]);
+								if(x == 0) return d3.descending(a.key, b.key); else return x;
+							} else if(a.key != null) return 1;
+							else return -1;
+						}	
+					});
+					d3.range(filterList.length).map(function(d,j) {
+						if(i==j) sortOrder[i] = !sortOrder[i];
+						else sortOrder[j] = true;
+					});
+					zebra();
+				});
+				
+			rows = tbody.selectAll("tr.row")
+				.data(data)
+				.enter()
+				.append("tr").attr("class", "row");
+				r = rows;
+				var cells = rows.selectAll("td")
+				.data(function(row) {
+						return d3.range(filterList.length).map(function(i) {
+							var info = row[filterList[i]];
+							if(info == null) info = row.years[year][filterList[i]];
+							return info;
+						});
+				})
+				.enter()
+				.append("td")
+				.text(function(d,i) { if(filterList[i] == "continent") {
+								if(!(continents.some(elem => elem == d)))
+								continents.push(d);
+							}
+								if(filterList[i] == "life_expectancy") return d3.format(".1f")(d);
+							if(filterList[i] == "population") return d3.format(",")(d);
+							if(filterList[i] == "gdp") return d3.format(".0f")(d);
+							return d; });
+
+
+			
+			nested_rows = d3.nest()
+				.key(function(d) { return d.continent; })
+				.rollup(function(d) {
+					var rollYears = [];
+					for(var i = 0; i < d[0].years.length; i++) {
+						var parameters = [];
+						for(var j = 0; j < filterList.length; j++)
+							parameters[filterList[j]]=0;
+						rollYears.push(parameters);
+					}
+					for(var i = 0; i < d.length; i++) {
+						for(var j = 0; j < d[0].years.length; j++) {
+							for(var k = 0; k < filterList.length; k++) {
+								if(filterList[k] == "continent" || filterList[k] == "name")
+									rollYears[j][filterList[k]] = d.continent;
+								else if(filterList[k] == "year") rollYears[j][filterList[k]] = d[i].years[j][filterList[k]];
+								else rollYears[j][filterList[k]] += d[i].years[j][filterList[k]];
+							}
+						}
+					}
+					return {
+						years: rollYears
+					}; }) // Where aggregation happens
+				.entries(dataset);
+
+				rowsaggr = tbody.selectAll("tr.aggr").data(nested_rows)
+				.enter().append("tr").attr("class", "aggr notSelected");
+
+			var cellsaggr = rowsaggr.selectAll("td")
+				.data(function(row) {
+						return d3.range(filterList.length).map(function(column, i) {
+							if(filterList[i] == "name" || filterList[i] == "continent") return row.key;
+							else return row.values.years[year][filterList[i]];
+						});})
+				.enter()
+				.append("td")
+				.text(function(d,i) {
+					if(filterList[i] == "life_expectancy") return d3.format(".1f")(d);
+					if(filterList[i] == "population") return d3.format(",")(d);
+					if(filterList[i] == "gdp") return d3.format(".0f")(d);
+					return d; });
+
+
+
+
+
+			var l = d3.select("body").select("label.checkboxes");
+			l.text("Filter by:"); 
+			d3.range(continents.length).map(function(i) {
+				l.append("input")
+				.text( continents[i] ) //в браузере отображается код <input ...>text</input>, но при этом текст не повляется рядом с кнопкой в режиме просмотра
+				.attr( "type", "checkbox" )
+				.attr( "name", continents[i] )
+				.attr( "onchange", "checkboxselect()"); 
+				l.append("label").text(continents[i]);
+				
+			});
+
+			var l = d3.select("body").select("label.radiobuttons");
+			l.text("Aggregation:"); 
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "aggregation" )
+				.attr( "value", "none")
+				.attr( "checked", true)
+				.attr( "onchange", "radioselect()");
+			l.append("label").text("None");
+			l.append("input")
+				.attr( "type", "radio" )
+				.attr( "name", "aggregation" )
+				.attr( "value", "continent")
+				.attr( "onchange", "radioselect()");
+			l.append("label").text("by Continent");
+
+			var minTime = d3.min(dataset, function(array) {return array.years[0].year;}),
+				maxTime = d3.max(dataset, function(array) {return array.years[array.years.length-1].year;});
+ 
+			var l = d3.select("body").select("label.times");
+			l.text("Time update:"); 
+			l.append("label").text(minTime);
+			l.append("input")
+				.attr( "type", "range" )
+				.attr( "name", "points" )
+				.attr( "min", minTime)
+				.attr( "max", maxTime)
+				.attr( "step", "1")
+				.attr( "value", "0")
+				.attr( "id", "slider-time")
+				.attr( "oninput", "year = this.value - this.min; updateTime(rows); updateTime(rowsaggr);");
+			l.append("label").text(maxTime);
+
+
+			zebra();
+			});
+
+			function zebra() {
+			var num = 0;
+			d3.selectAll("tr").each( function() {
+				var elt = d3.select(this);
+				if(!elt.classed("notSelected")) {
+					if(num%2 == 0) {
+						elt.classed("odd", false);
+						elt.classed("even", true);
+					} else {
+						elt.classed("odd", true);
+						elt.classed("even", false);
+					}
+					num = num + 1;
+				}
+			});
+		}
+
+
+		function checkboxselect() {
+			var checkboxselected = 0;
+			var visible = [];
+			var aggrMode = false;
+			d3.selectAll("input").each(function(d) {
+				if(d3.select(this).attr("type") == "checkbox" && d3.select(this).node().checked) {
+					checkboxselected = checkboxselected + 1;
+					visible.push(d3.select(this).attr("name"));
+				}
+			})
+			if (checkboxselected == 0 || checkboxselected == 5)
+				r.each( function() {
+					var elt = d3.select(this);
+					elt.classed("notSelected", false);
+				});
+			else r.each( function() {
+				var elt = d3.select(this);
+				var selectedTR = false;
+				elt.classed("notSelected", true);
+				elt.selectAll("td").each( function(d) {
+					if(visible.some(x => x == d)) elt.classed("notSelected", false);
+				});
+			});
+			zebra();
+		}
+
+		function radioselect() {
+			if(!aggrMode) {
+				aggrMode = true;
+				r = rowsaggr;
+				rows.each( function() {
+					var elt = d3.select(this);
+					elt.classed("notSelected", true);
+				});
+				checkboxselect();
+			} else {
+				aggrMode = false;
+				r = rows;
+				rowsaggr.each( function() {
+					var elt = d3.select(this);
+					elt.classed("notSelected", true);
+				});
+				checkboxselect();
+			}
+			zebra();	
+		}
+
+		function updateTime(x) {
+			var p = x.selectAll("td")
+				.data(function(row) {
+					return d3.range(filterList.length).map(function(i) {
+						var info = row[filterList[i]];
+						if(row.key == null) { if(info == null) info = row.years[year][filterList[i]]; }
+						else {
+							if(filterList[i] == "name" || filterList[i] == "continent") info = row.key;
+							else info = row.values.years[year][filterList[i]]; }
+						return info;
+					});
+				});
+			p.enter().append("td");
+			p.exit().remove();
+			p.text(function(d,i) { if(filterList[i] == "life_expectancy") return d3.format(".1f")(d);
+						if(filterList[i] == "population") return d3.format(",")(d);
+						if(filterList[i] == "gdp") return d3.format(".0f")(d);
+						return d; });
+		}
+	</script> 
+</body>
+</html>
