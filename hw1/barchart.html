@@ -13,21 +13,18 @@
 		.notSelected text {
 			font-size: 0;
 		}
-		
+		p {
+			margin: 0;
+		}		
 	</style>
 </head>
 <body>
 	<script type="text/javascript">
-		d3.select("body").append("label").classed("times", true);
-		d3.select("body").append("br");
-		d3.select("body").append("label").classed("radiobuttonsEncode", true);
-		d3.select("body").append("br");
-		d3.select("body").append("label").classed("checkboxes", true);
-		d3.select("body").append("br");
-		d3.select("body").append("label").classed("radiobuttonsAggregate", true);
-		d3.select("body").append("br");
-		d3.select("body").append("label").classed("radiobuttonsSort", true);
-		d3.select("body").append("br");
+		d3.select("body").append("p").classed("times", true);
+		d3.select("body").append("p").classed("radiobuttonsEncode", true);
+		d3.select("body").append("p").classed("checkboxes", true);
+		d3.select("body").append("p").classed("radiobuttonsAggregate", true);
+		d3.select("body").append("p").classed("radiobuttonsSort", true);
 		var dataset;
 		var aggrMode = false;
 		var continents = [];
@@ -133,7 +130,7 @@
 			var minTime = d3.min(dataset, function(array) {return array.years[0].year;}),
 				maxTime = d3.max(dataset, function(array) {return array.years[array.years.length-1].year;});
  
-			var l = d3.select("body").select("label.times");
+			var l = d3.select("body").select("p.times");
 			l.text("Time update:"); 
 			l.append("label").text(minTime);
 			l.append("input")
@@ -147,7 +144,7 @@
 				.attr( "oninput", "year = this.value - this.min; updateTime();");
 			l.append("label").text(maxTime);
 
-			var l = d3.select("body").select("label.radiobuttonsEncode");
+			var l = d3.select("body").select("p.radiobuttonsEncode");
 			l.text("Encode bars by:"); 
 			l.append("input")
 				.attr( "type", "radio" )
@@ -163,19 +160,19 @@
 				.attr( "onchange", "radioselect(name, value)");
 			l.append("label").text("GDP");
 
-			var l = d3.select("body").select("label.checkboxes");
+			var l = d3.select("body").selectAll("p.checkboxes");
 			l.text("Filter by:"); 
 			d3.range(continents.length).map(function(i) {
 				l.append("input")
-				.text( continents[i] ) //в браузере отображается код <input ...>text</input>, но при этом текст не повляется рядом с кнопкой в режиме просмотра
 				.attr( "type", "checkbox" )
 				.attr( "name", continents[i] )
+				.text( continents[i] ) //в браузере отображается код <input ...>text</input>, но при этом текст не повляется рядом с кнопкой в режиме просмотра
 				.attr( "onchange", "checkboxselect()"); 
 				l.append("label").text(continents[i]);
 				
 			});
 
-			var l = d3.select("body").select("label.radiobuttonsAggregate");
+			var l = d3.select("body").select("p.radiobuttonsAggregate");
 			l.text("Aggregate by:"); 
 			l.append("input")
 				.attr( "type", "radio" )
@@ -191,7 +188,7 @@
 				.attr( "onchange", "radioselect(name, value)");
 			l.append("label").text("Country");
 
-			var l = d3.select("body").select("label.radiobuttonsSort");
+			var l = d3.select("body").select("p.radiobuttonsSort");
 			l.text("Sort by:"); 
 			l.append("input")
 				.attr( "type", "radio" )
@@ -253,8 +250,6 @@
 		}
 
 		function radioselect(name, value) {
-			console.log(name + " " + value);
-
 			if(name == "encode") {
  				var max = d3.max(dataset, function(d) { return d.years[year][value]; });
 				var min = 0;
@@ -284,8 +279,11 @@
 					var aSelect = d3.select('[id = \"' + a.name + '\"]').classed("notSelected");
 					var bSelect = d3.select('[id = \"' + b.name + '\"]').classed("notSelected");
 					if(aSelect == bSelect)
-						if(a[x] == null) return d3.ascending(a.years[year][x], b.years[year][x]);
-						else return d3.ascending(a[x], b[x]);
+						if(a[x] == null) {
+							var temp = d3.descending(a.years[year][x], b.years[year][x]);
+							if(temp == 0) return d3.ascending(a[x], b[x]);
+							return temp;
+						} else return d3.ascending(a[x], b[x]);
 					else if(aSelect) return 1;
 					else return -1;
 				});

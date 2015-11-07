@@ -7,28 +7,31 @@
 			border: 1px solid #000000;
 			border-collapse: collapse;
 		}
-
 		tr.even {
 			background: #ffffff;
 		}
-
 		tr.odd{
 			background: #eeeeee;
 		}
-
 		tr.notSelected {
 			display: none;
+		}
+		p {
+			margin: 0;
 		}
 	</style>
 </head>
 <body>		
 	<script src="http://d3js.org/d3.v3.min.js"></script>
 	<script>
-		d3.select("body").append("label").classed("times", true);
+		/*d3.select("body").append("label").classed("times", true);
 		d3.select("body").append("p");
 		d3.select("body").append("label").classed("checkboxes", true);
 		d3.select("body").append("p");
-		d3.select("body").append("label").classed("radiobuttons", true);
+		d3.select("body").append("label").classed("radiobuttons", true);*/
+		d3.select("body").append("p").classed("times", true);
+		d3.select("body").append("p").classed("checkboxes", true);
+		d3.select("body").append("p").classed("radiobuttons", true);
 		var aggrMode = false, r, rows, rowsaggr;
 		var continents = [];
 		var year = 0;
@@ -141,6 +144,9 @@
 							}
 						}
 					}
+					for(var j = 0; j < d[0].years.length; j++) {
+						rollYears[j]["life_expectancy"] /= d.length;
+					}
 					return {
 						years: rollYears
 					}; }) // Where aggregation happens
@@ -167,7 +173,7 @@
 
 
 
-			var l = d3.select("body").select("label.checkboxes");
+			var l = d3.select("body").select("p.checkboxes");
 			l.text("Filter by:"); 
 			d3.range(continents.length).map(function(i) {
 				l.append("input")
@@ -179,7 +185,7 @@
 				
 			});
 
-			var l = d3.select("body").select("label.radiobuttons");
+			var l = d3.select("body").select("p.radiobuttons");
 			l.text("Aggregation:"); 
 			l.append("input")
 				.attr( "type", "radio" )
@@ -198,7 +204,7 @@
 			var minTime = d3.min(dataset, function(array) {return array.years[0].year;}),
 				maxTime = d3.max(dataset, function(array) {return array.years[array.years.length-1].year;});
  
-			var l = d3.select("body").select("label.times");
+			var l = d3.select("body").select("p.times");
 			l.text("Time update:"); 
 			l.append("label").text(minTime);
 			l.append("input")
@@ -237,7 +243,6 @@
 		function checkboxselect() {
 			var checkboxselected = 0;
 			var visible = [];
-			var aggrMode = false;
 			d3.selectAll("input").each(function(d) {
 				if(d3.select(this).attr("type") == "checkbox" && d3.select(this).node().checked) {
 					checkboxselected = checkboxselected + 1;
