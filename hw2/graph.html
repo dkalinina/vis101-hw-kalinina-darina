@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<head>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+  <style type="text/css">
+		line {
+			stroke: black;
+			stroke-width: 1;
+		}
+  </style>
+</head>
+<body>
+	<script type="text/javascript">
+		d3.select("body").append("p").classed("times", true);
+		d3.select("body").append("p").classed("positions", true);
+		d3.select("body").append("p").classed("sort", true);
+
+		var dataset;
+		var year = 0, minTime, maxTime;
+		var r = 4;
+		var continents = [];
+
+		var margin = {top: 50, bottom: 10, left:100, right: 100};
+		var width = 1200 - margin.left - margin.right;
+		var height = 1300 - margin.top - margin.bottom;
+		var screenWidth = 1300 - margin.left - margin.right;
+		var screenHeight = 700 - margin.top - margin.bottom;
+		var timeToTransition = 1000;
+ 
+		var force;
+		var xScale = d3.scale.linear().range([0, width]);
+		var yScale = d3.scale.ordinal().rangeRoundBands([0, height], .8, 0);
+ 
+		var svg = d3.select("body").append("svg")
+				.attr("width", width+margin.left+margin.right)
+				.attr("height", height+margin.top+margin.bottom);
+ 
+		var g = svg.append("g")
+				.attr("transform", "translate("+margin.left+","+margin.top+")");
+ 
+		var bars, texts, lines, linklist = [];
+
+
+
+		d3.json("data/countries_1995_2012.json", function(data) {
+			dataset = data;
+ 
+			var max = 0;
+			var min = 0;
+
+			xScale.domain([min, max]);
+			yScale.domain(data.map(function(d) { return d.name; }));
+ 
+
+			dataset.forEach(function(d) {
+				d.years[0].top_partners.forEach(function(a) {
+					linklist.push({
+						source: d, 
+						target: dataset.find(function(x) {return x.country_id == a.country_id})});
+				});
+
+			});
+
+			bars = g.selectAll("circle")
+					.data(data)
+				  	.enter()
+					.append("circle")
+					.attr("r", r)
+					.attr("fill", "white")
+					.attr("stroke", "black");
+
+			texts = g.selectAll("text")
+					.data(data)
+				  	.enter()
+					.append("text")
+					.text(function(d) { 
+						if(!(continents.some(elem => elem.name == d.continent))) continents.push({name: d.continent});
+						return d.name; })
+					.attr("font-size", 12)
+					.on("mouseover", function(d) {
+						if(d3.select("#links").node().checked) onText(d.country_id);
+					})
+					.on("mouseout", function(d) {
+						if(d3.select("#links").node().checked) outText();
+					});
+
+			lines = g.selectAll("line")
+					.data(linklist)
+				  	.enter()
+					.append("line")
+					.attr("source", function(d) {return d.source;})
+					.attr("target", function(d) {return d.target;})
+					.attr("stroke-opacity", 0);
+
+			force = d3.layout.force()
+				.nodes(dataset)
+				.size([screenWidth-300, screenHeight])
+				.on("tick", tick);
+			force.start();
+			force.stop();
+
+			var pieGr = d3.layout.pie()
+					.sort(function(a, b) { return b.name - a.name; })
+					.value(function(d, i) { return 1;
+ });
+			continents = pieGr(continents).map(function(d) {
+						d.data['angle'] = d.startAngle; 
+						return d.data;});
+
+			changePositions(d3.select('#pos').select('option:checked').node().value);
+
+			var minTime = d3.min(data, function(array) {return array.years[0].year;}),
+			maxTime = d3.max(data, function(array) {return array.years[array.years.length - 1].year;});
+
+			var l = d3.select("body").select("p.times");
+			l.text("Time update:"); 
+			l.append("label").text(minTime);
+			l.append("input")
+				.attr( "type", "range" )
+				.attr( "name", "points" )
+				.attr( "min", minTime)
+				.attr( "max", maxTime)
+				.attr( "step", "1")
+				.attr( "value", "0")
+				.attr( "id", "slider-time")
+				.attr( "oninput", "year = this.value - this.min; changePositions(d3.select('#pos').select('option:checked').node().value);");
+			l.append("label").text(maxTime);
+		});
+
+		var l = d3.select("body").select("p.positions")
+			.append("select")
+			.attr( "id", "pos")
+			.attr( "onchange", "changePositions(value)");
+		l.append("option")
+			.attr( "value", "none")
+			.text("None");
+		l.append("option")
+			.attr( "value", "population")
+			.text("Only Population");
+		l.append("option")
+			.attr( "value", "gdp")
+			.text("Only GDP");
+		l.append("option")
+			.attr( "value", "gdp/population")
+			.text("GDP / Population");
+		l.append("option")
+			.attr( "value", "longitude/latitude")
+			.text("Longitude / Latitude");
+		l.append("option")
+			.attr( "value", "force")
+			.text("Force");
+		l.append("option")
+			.attr( "value", "circular")
+			.text("Circular");
+
+		var l = d3.select("body").select("p.positions");
+		l.append("input")
+			.attr("type", "checkbox")
+			.attr("id", "links")
+			.attr( "onchange", "changeLinksVisiblity()"); 
+		l.append("label")
+			.text("with links");
+
+
+		var l = d3.select("body").select("p.sort")
+			.text("Group by ")
+			.attr("hidden",true)
+		 	.append("select")
+			.attr( "id", "group")
+			.attr( "onchange", "changePositions(d3.select('#pos').select('option:checked').node().value);");
+		l.append("option")
+			.attr( "value", "none")
+			.text("None");
+		l.append("option")
+			.attr( "value", "continent")
+			.text("Continent");
+
+		var l = d3.select("body").select("p.sort")
+			.append("tab")
+			.attr( "id", "sort")
+			.text("	Sorted by ")
+			.append("select")
+			.attr( "onchange", "changePositions(d3.select('#pos').select('option:checked').node().value);");
+		l.append("option")
+			.attr( "value", "population")
+			.text("Population");
+		l.append("option")
+			.attr( "value", "gdp")
+			.text("GDP");
+
+		var l = d3.select("body").select("p.sort")
+			.append("tab")
+			.attr( "id", "groupType")
+			.text("	Type ")	
+			.append("select")
+			.attr( "onchange", "changePositions(d3.select('#pos').select('option:checked').node().value);");
+		l.append("option")
+			.attr( "value", "force")
+			.text("Force");
+		l.append("option")
+			.attr( "value", "pie")
+			.text("Pie");
+
+
+		function tick(e) {
+			var aggr = d3.select('#group').select('option:checked').node().value;
+			var k = 15 * e.alpha;
+			if(aggr != 'none'){
+				
+				var type = d3.select('#groupType').select('option:checked').node().value;
+
+				dataset.forEach(function(o) {
+					if(type == 'force') 
+					o.x += k * (continents.findIndex(function(d) {return d.name == o.continent;}) - Math.floor(continents.length/2));
+					else {
+						var angle = continents.find(function(d) {return d.name == o.continent;}).angle;
+						o.x += k * Math.cos(angle);
+						o.y += k * Math.sin(angle);
+					}
+				});
+			}
+			lines
+				.attr("x1", function(d) { return d.source.x; })
+				.attr("y1", function(d) { return d.source.y; })
+				.attr("x2", function(d) { return d.target.x; })
+				.attr("y2", function(d) { return d.target.y; });
+			bars
+				.attr("cx", function(d) { return d.x; })
+				.attr("cy", function(d) { return d.y; });	
+			texts
+				.attr("x", function(d) { return d.x + 2 * r; })
+				.attr("y", function(d) { return d.y + r + 1; });
+			
+		}
+
+		function changePositions(value) {
+				d3.select("p.sort").attr("hidden",true);
+				force.stop();
+
+
+
+				if(value == "none") {
+					svg.attr("width", width+margin.left/2+margin.right/2)
+						.attr("height", height+margin.top+margin.bottom);
+					xScale = d3.scale.linear().range([0, width]);
+					xScale.domain([0, 0]);
+					yScale = d3.scale.ordinal().rangeRoundBands([0, height], .8, 0);
+					yScale.domain(dataset.map(function(d) {return d.name; }));
+					
+					dataset.forEach(function(d) {
+						d.x = 0;
+						d.y = d.name;
+					});
+				} else if(value == "force") {
+					d3.select("p.sort").attr("hidden",null);
+					d3.select("#sort").attr("hidden",true);
+					if(d3.select('#group').select('option:checked').node().value == 'none')
+						d3.select("#groupType").attr("hidden",true);
+					else
+						d3.select("#groupType").attr("hidden",null);
+	
+					force.start(); return;
+
+				}  else if(value == "circular") {
+					d3.select("p.sort").attr("hidden",null);
+					d3.select("#sort").attr("hidden",null);
+					d3.select("#groupType").attr("hidden",true);
+
+					var sortPar = d3.select('#sort').select('option:checked').node().value;
+					var groupPar = d3.select('#group').select('option:checked').node().value;
+
+					svg.attr("width", screenWidth+margin.left/2+margin.right/2)
+						.attr("height", screenHeight+margin.top+margin.bottom);
+					var size = Math.min(screenWidth, screenHeight);
+
+					xScale = d3.scale.linear().range([0, size]);
+					yScale = d3.scale.linear().range([0, size]);
+					xScale.domain([-size/2, size/2]);
+					yScale.domain([-size/2, size/2]);
+
+					if(groupPar == "none") {
+						var pie = d3.layout.pie()
+							.sort(function(a, b) { return a.years[year][sortPar] - b.years[year][sortPar]; })
+							.value(function(d, i) { return 1;
+ });
+
+						dataset = pie(dataset).map(function(d) {
+								d.data['angle'] = d.startAngle; 
+								d.data.x = size/2 * Math.cos(d.startAngle);
+								d.data.y = size/2 * Math.sin(d.startAngle);
+								return d.data;});
+
+					} else {
+						var d = [];
+						for(var i = 0; i < continents.length; i++) {
+							var pie = d3.layout.pie()
+								.sort(function(a, b) { return a.years[year][sortPar] - b.years[year][sortPar]; })
+								.value(function(d, i) { return 1;
+ });
+
+							d.push(pie(dataset.filter(function(d) {return d.continent == continents[i].name;})).map(function(d) 							{
+								d.data['angle'] = d.startAngle; 
+								d.data['angleGr'] = continents[i].angle; 
+								d.data.x = size/3 * Math.cos(continents[i].angle) + size/6 * Math.cos(d.startAngle);
+								d.data.y = size/3 * Math.sin(continents[i].angle) + size/6 * Math.sin(d.startAngle);
+								return d.data;}));
+
+							}
+						dataset = d3.merge(d);
+					}
+					
+				} else {
+					svg.attr("width", screenWidth+margin.left+margin.right)
+						.attr("height", screenHeight+margin.top+margin.bottom);
+					xScale = d3.scale.linear().range([0, screenWidth]);
+					yScale = d3.scale.linear().range([0, screenHeight]);
+
+					var value1 = value.substr(value.indexOf('/')+1);
+					var value2 = value.substr(0, value.indexOf('/'));
+					var minX, maxX, minY, maxY;
+
+					if(dataset[0][value1] == null) {
+						minY = d3.min(dataset, function(d) { return d.years[year][value1]; } );
+						maxY = d3.max(dataset, function(d) { return d.years[year][value1]; } );
+					} else {
+						minY = d3.min(dataset, function(d) { return d[value1]; } );
+						maxY = d3.max(dataset, function(d) { return d[value1]; } );
+					}
+					if(minY > 0) minY = 0;
+					yScale.domain([minY, maxY]);
+
+					if(value2 == "") {
+						minX = 0; maxX = 0;
+					} else if(dataset[0][value2] == null) {
+						minX = d3.min(dataset, function(d) { return d.years[year][value2]; } );
+						maxX = d3.max(dataset, function(d) { return d.years[year][value2]; } );
+					} else {
+						minX = d3.min(dataset, function(d) { return d[value2]; } );
+						maxX = d3.max(dataset, function(d) { return d[value2]; } );
+					}
+					if(minX > 0) minX = 0;
+					xScale.domain([minX, maxX]);
+
+					dataset.forEach(function(d) {
+						if(d[value1] == null) {
+							d.y = maxY + minY - d.years[year][value1];
+						} else {
+							d.y = maxY + minY - d[value1];
+						}
+						if(value2 == "") {
+							d.x = 0;
+						} else if(d[value2] == null) {
+							d.x = d.years[year][value2];
+						} else {
+							d.x = d[value2];
+						}
+					});
+
+				}
+
+
+
+				lines.transition()
+					.duration(timeToTransition)
+					.attr("x1", function(d) { return xScale(d.source.x); })
+					.attr("y1", function(d) { return yScale(d.source.y); })
+					.attr("x2", function(d) { return xScale(d.target.x); })
+					.attr("y2", function(d) { return yScale(d.target.y); });
+				bars.transition()
+					.duration(timeToTransition)
+					.attr("cx", function(d) { return xScale(d.x); })
+					.attr("cy", function(d) { return yScale(d.y); });
+				texts.transition()
+					.duration(timeToTransition)
+					.attr("x", function(d) { return xScale(d.x) + 2 * r; })
+					.attr("y", function(d) { return yScale(d.y) + r + 1; });
+		}
+
+		function onText(source) {
+			var cities = [source];
+			lines.attr("stroke-opacity", function(d) {
+					if (d.source.country_id == source) {
+						cities.push(d.target.country_id);
+						return 1;
+					} else return 0.1;
+				});
+
+			bars.attr("stroke", function(d) {
+					if (cities.some(elem => elem == d.country_id))
+						return "black";
+					else return "#aaaaaa";
+				})
+				.attr("fill", function(d) {
+					if (d.country_id == source)
+						return "black";
+					else return "none";
+				})
+				.attr("stroke-width", function(d) {
+					if (cities.some(elem => elem == d.country_id))
+						return 3;
+					else return 1;
+				});
+			texts.attr("fill", function(d) {
+					if (cities.some(elem => elem == d.country_id))
+						return "black";
+					else return "#aaaaaa";
+				})
+				.attr("font-size", function(d) {
+					if (cities.some(elem => elem == d.country_id))
+						return 14;
+					else return 12;
+				});
+		}
+		function outText() {
+			lines.attr("stroke-opacity", 0.1);
+			bars.attr("stroke", "black").attr("fill", "none").attr("stroke-width", 1);
+			texts.attr("fill", "black").attr("font-size", 12);
+		}
+		function changeLinksVisiblity() {
+			if(d3.select("#links").node().checked)
+				lines.attr("stroke-opacity", 0.1);
+			else lines.attr("stroke-opacity", 0);
+		}
+
+	</script>
+</body>
+</html>
