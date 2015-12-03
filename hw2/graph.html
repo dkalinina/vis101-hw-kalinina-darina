@@ -39,7 +39,7 @@
 		var g = svg.append("g")
 				.attr("transform", "translate("+margin.left+","+margin.top+")");
  
-		var bars, texts, lines, linklist = [];
+		var circles, texts, lines, linklist = [];
 
 
 
@@ -61,8 +61,24 @@
 				});
 
 			});
+			
+			force = d3.layout.force()
+				.nodes(dataset)
+				//.links(linklist)
+				.size([screenWidth-300, screenHeight])
+				.on("tick", tick);
+			force.start();
+			force.stop();
+			
+			lines = g.selectAll("line")
+					.data(linklist)
+				  	.enter()
+					.append("line")
+					.attr("source", function(d) {return d.source;})
+					.attr("target", function(d) {return d.target;})
+					.attr("stroke-opacity", 0);
 
-			bars = g.selectAll("circle")
+			circles = g.selectAll("circle")
 					.data(data)
 				  	.enter()
 					.append("circle")
@@ -84,21 +100,6 @@
 					.on("mouseout", function(d) {
 						if(d3.select("#links").node().checked) outText();
 					});
-
-			lines = g.selectAll("line")
-					.data(linklist)
-				  	.enter()
-					.append("line")
-					.attr("source", function(d) {return d.source;})
-					.attr("target", function(d) {return d.target;})
-					.attr("stroke-opacity", 0);
-
-			force = d3.layout.force()
-				.nodes(dataset)
-				.size([screenWidth-300, screenHeight])
-				.on("tick", tick);
-			force.start();
-			force.stop();
 
 			var pieGr = d3.layout.pie()
 					.sort(function(a, b) { return b.name - a.name; })
@@ -220,15 +221,16 @@
 					}
 				});
 			}
-			lines
+			
+			lines.transition()
 				.attr("x1", function(d) { return d.source.x; })
 				.attr("y1", function(d) { return d.source.y; })
 				.attr("x2", function(d) { return d.target.x; })
 				.attr("y2", function(d) { return d.target.y; });
-			bars
+			circles.transition()
 				.attr("cx", function(d) { return d.x; })
 				.attr("cy", function(d) { return d.y; });	
-			texts
+			texts.transition()
 				.attr("x", function(d) { return d.x + 2 * r; })
 				.attr("y", function(d) { return d.y + r + 1; });
 			
@@ -260,7 +262,28 @@
 					else
 						d3.select("#groupType").attr("hidden",null);
 	
-					force.start(); return;
+					dataset.forEach(function(d) {
+						d.x = d.px;
+						d.y = d.py;
+					});
+					
+					lines.transition()
+						.duration(timeToTransition)
+						.attr("x1", function(d) { return d.source.x; })
+						.attr("y1", function(d) { return d.source.y; })
+						.attr("x2", function(d) { return d.target.x; })
+						.attr("y2", function(d) { return d.target.y; });
+					circles.transition()
+						.duration(timeToTransition)
+						.attr("cx", function(d) { return d.x; })
+						.attr("cy", function(d) { return d.y; });
+					texts.transition()
+						.duration(timeToTransition)
+						.attr("x", function(d) { return d.x + 2 * r; })
+						.attr("y", function(d) { return d.y + r + 1; });
+					
+					force.start();
+					return;
 
 				}  else if(value == "circular") {
 					d3.select("p.sort").attr("hidden",null);
@@ -367,7 +390,7 @@
 					.attr("y1", function(d) { return yScale(d.source.y); })
 					.attr("x2", function(d) { return xScale(d.target.x); })
 					.attr("y2", function(d) { return yScale(d.target.y); });
-				bars.transition()
+				circles.transition()
 					.duration(timeToTransition)
 					.attr("cx", function(d) { return xScale(d.x); })
 					.attr("cy", function(d) { return yScale(d.y); });
@@ -386,7 +409,7 @@
 					} else return 0.1;
 				});
 
-			bars.attr("stroke", function(d) {
+			circles.attr("stroke", function(d) {
 					if (cities.some(elem => elem == d.country_id))
 						return "black";
 					else return "#aaaaaa";
@@ -394,7 +417,7 @@
 				.attr("fill", function(d) {
 					if (d.country_id == source)
 						return "black";
-					else return "none";
+					else return "white";
 				})
 				.attr("stroke-width", function(d) {
 					if (cities.some(elem => elem == d.country_id))
@@ -414,7 +437,7 @@
 		}
 		function outText() {
 			lines.attr("stroke-opacity", 0.1);
-			bars.attr("stroke", "black").attr("fill", "none").attr("stroke-width", 1);
+			circles.attr("stroke", "black").attr("fill", "white").attr("stroke-width", 1);
 			texts.attr("fill", "black").attr("font-size", 12);
 		}
 		function changeLinksVisiblity() {
