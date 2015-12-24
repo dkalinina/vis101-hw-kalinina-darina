@@ -6,6 +6,7 @@
 
     <!-- ADD Libraries-->
     <script src="libs/d3/d3.min.js" charset="utf-8"></script>
+	<script src="libs/d3/queue.v1.min.js"></script>
     <script src="libs/jquery/jquery-2.1.1.min.js" charset="utf-8"></script>
     <script src="libs/bootstrap/js/bootstrap.min.js" charset="utf-8"></script>
 
@@ -82,7 +83,7 @@
 
 
 
-        function allLoaded(perDay,meta){
+        function allLoaded(error, perDay,meta){
 
             metaData = meta;
 
@@ -110,7 +111,10 @@
 
         // TODO: TASK 2 A -- implement your data loading here and then call "allLoaded(perDayData, metaData)"
 
-
+queue()
+    .defer(d3.json, 'data/perDayData.json')
+    .defer(d3.json, 'data/MYWorld_fields.json')
+    .await(allLoaded); // function that uses files
 
 
 

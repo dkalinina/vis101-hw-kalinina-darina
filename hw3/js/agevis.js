@@ -29,7 +29,28 @@ AgeVis = function(_parentElement, _data, _metaData){
 
     // TODO: define all constants here
 
+	this.width = 230;
+	this.height = 330;
+	this.left_p = 30;
+	this.bottom_p = 0;
+	this.w = this.width - this.left_p;
+	this.h = this.height - this.bottom_p;
+	
+	this.max = d3.max(this.data, function(array,i) {return d3.max(array.ages, function(d) {return d;});});
+	this.xScale = d3.scale.linear().range([this.left_p, this.width]).domain([0, this.max]);
+	this.yScale = d3.scale.linear().range([0, this.h]).domain([0, 100]);
+	
+	
+	this.aFunction = d3.svg.area()
+						.x0(this.left_p)
+						.x1(function(d, i) { return this.xScale(d); })
+						.y(function(d,i) { return this.yScale(i); })
+						.interpolate("linear");
 
+	this.yAxis = d3.svg.axis()
+				.scale(this.yScale)
+				.orient("left");
+				
     this.initVis();
 
 }
@@ -45,7 +66,21 @@ AgeVis.prototype.initVis = function(){
 
     //TODO: construct or select SVG
     //TODO: create axis and scales
+	
+    this.svg = this.parentElement.append("svg")
+		.attr("width", this.width)
+		.attr("height", this.height);
 
+	this.svg.append("g")
+		.attr("class", "path")
+		.append("path");
+		
+	this.svg.append("g")
+		.attr("class", "axis")
+		.attr("transform", "translate("+this.left_p+",0)")
+		.call(this.yAxis).selectAll("text")
+		.attr("transform", "translate(0,5)");
+		
     // filter, aggregate, modify data
     this.wrangleData(null);
 
@@ -90,6 +125,12 @@ AgeVis.prototype.updateVis = function(){
     // TODO: implement...
     // TODO: ...update scales
     // TODO: ...update graphs
+	
+	
+	this.svg.select("path")
+		.attr("d", this.aFunction(this.displayData))
+		.attr("stroke", "black")
+		.attr("fill", "black");
 
 
 }
@@ -101,9 +142,11 @@ AgeVis.prototype.updateVis = function(){
  * be defined here.
  * @param selection
  */
-AgeVis.prototype.onSelectionChange= function (selectionStart, selectionEnd){
+AgeVis.prototype.onSelectionChange = function (selectionStart, selectionEnd){
 
     // TODO: call wrangle function
+	
+	if(d3.time.format("%Y-%m-%d")(selectionStart) != d3.time.format("%Y-%m-%d")(selectionEnd)) this.wrangleData(function(d) {return d.time >= selectionStart && d.time <= selectionEnd;});
 
     this.updateVis();
 
@@ -150,7 +193,14 @@ AgeVis.prototype.filterAndAggregate = function(_filter){
 
     // TODO: implement the function that filters the data and sums the values
 
-
+	this.data.filter(filter).map(function(arr) {
+		arr.ages.map(function(ages,i) {
+			res[i] += ages;
+		});
+	});
+	
+	this.max = d3.max(res, function(d) {return d;});
+	this.xScale = d3.scale.linear().range([this.left_p, this.width]).domain([0, this.max]);
 
     return res;
 
